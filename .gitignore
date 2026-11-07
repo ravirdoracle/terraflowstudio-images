@@ -1,0 +1,5 @@
+.env
+*.tar
+*.tar.gz
+*.sha256
+.DS_Store
