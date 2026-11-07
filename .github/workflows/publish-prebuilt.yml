@@ -1,0 +1,89 @@
+name: Publish prebuilt image to GHCR
+
+'on':
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release containing the prebuilt ARM64 tar and checksum
+        required: true
+        default: v2026.11.07
+        type: string
+
+concurrency:
+  group: publish-prebuilt-registry
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_NAME: ghcr.io/ravirdoracle/terraflowstudio-images
+      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+    steps:
+      - name: Download released archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || {
+            echo "Release tag is not a valid container tag"
+            exit 1
+          }
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern odb-terraform-app-arm64.tar \
+            --pattern odb-terraform-app-arm64.tar.sha256
+          sha256sum -c odb-terraform-app-arm64.tar.sha256
+      - name: Load the existing image
+        id: load
+        run: |
+          docker load -i odb-terraform-app-arm64.tar
+          test "$(docker image inspect localhost/odb-terraform-app:latest --format '{{.Architecture}}')" = arm64
+          echo "image_id=$(docker image inspect localhost/odb-terraform-app:latest --format '{{.Id}}')" >> "$GITHUB_OUTPUT"
+      - name: Check authentication and credential exclusion
+        run: |
+          docker run --rm \
+            -e APP_AUTH_USER=ci-user \
+            -e APP_AUTH_PASSWORD=ci-test-password \
+            localhost/odb-terraform-app:latest python -c '
+          import base64, pathlib
+          from app import app
+          client = app.test_client()
+          assert client.get("/").status_code == 401
+          assert client.get("/api/config").status_code == 401
+          auth = base64.b64encode(b"ci-user:ci-test-password").decode()
+          assert client.get("/", headers={"Authorization": "Basic " + auth}).status_code == 200
+          assert not pathlib.Path("/app/.env").exists()
+          print("Prebuilt image authentication and credential checks passed")
+          '
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push the prebuilt image
+        run: |
+          docker tag localhost/odb-terraform-app:latest "$IMAGE_NAME:$RELEASE_TAG"
+          docker tag localhost/odb-terraform-app:latest "$IMAGE_NAME:latest"
+          docker push "$IMAGE_NAME:$RELEASE_TAG"
+          docker push "$IMAGE_NAME:latest"
+      - name: Verify the registry image matches the release
+        env:
+          EXPECTED_IMAGE_ID: ${{ steps.load.outputs.image_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          docker pull --platform linux/arm64 "$IMAGE_NAME:latest"
+          actual_id=$(docker image inspect "$IMAGE_NAME:latest" --format '{{.Id}}')
+          test "$actual_id" = "$EXPECTED_IMAGE_ID"
+          echo "Verified published image: $IMAGE_NAME:latest"
+          echo "Image configuration ID: $actual_id"
+          docker image inspect "$IMAGE_NAME:latest" --format '{{json .RepoDigests}}'
+          if ! gh api "users/${GITHUB_REPOSITORY_OWNER}/packages/container/terraflowstudio-images" \
+            --jq '{name,visibility,html_url}'; then
+            echo "::warning::Image was verified, but package visibility could not be read."
+          fi

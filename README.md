@@ -1,8 +1,33 @@
 # Terraflow Studio — prebuilt images
 
-Download ready-to-run container images from [Releases](https://github.com/ravirdoracle/terraflowstudio-images/releases).
+Download ready-to-run container images from [Releases](https://github.com/ravirdoracle/terraflowstudio-images/releases)
+or pull them from GitHub Container Registry.
 This repository distributes existing images; it does not build the application.
 Application source: [ravirdoracle/terraflowstudio](https://github.com/ravirdoracle/terraflowstudio).
+
+## Container registry
+
+Image: **`ghcr.io/ravirdoracle/terraflowstudio-images:latest`**
+
+The registry image is the same **Linux ARM64** prebuilt image as the released
+archive. It is loaded, checked, tagged, and pushed without rebuilding the app.
+The release tag `v2026.11.07` is also available to pin this version.
+
+```sh
+# If the package is private, authenticate with an authorized GitHub account
+# and a personal access token (classic) with read:packages at the password prompt.
+podman login ghcr.io --username YOUR_GITHUB_USERNAME
+podman pull ghcr.io/ravirdoracle/terraflowstudio-images:latest
+podman tag ghcr.io/ravirdoracle/terraflowstudio-images:latest localhost/odb-terraform-app:latest
+```
+
+Public packages do not require login. After pulling and tagging, skip to step 3
+below to set your login credentials and run the app. Docker users can substitute
+`docker` for `podman`.
+
+The **Publish prebuilt image to GHCR** workflow runs when a release is published,
+or manually through **Actions → Run workflow** with a release tag. It verifies the
+archive checksum and confirms the pushed image ID matches the loaded archive.
 
 ## Available download
 
