@@ -1,105 +1,85 @@
-# Terraflow Studio — prebuilt images
+# Terraflow Studio — container images
 
-Download ready-to-run container images from [Releases](https://github.com/ravirdoracle/terraflowstudio-images/releases)
-or pull them from GitHub Container Registry.
-This repository distributes existing images; it does not build the application.
-Application source: [ravirdoracle/terraflowstudio](https://github.com/ravirdoracle/terraflowstudio).
+Download ready-to-run images from [Releases](https://github.com/ravirdoracle/terraflowstudio-images/releases)
+or pull from GitHub Container Registry. Application source repository:
+[ravirdoracle/terraflowstudio](https://github.com/ravirdoracle/terraflowstudio).
 
-## Container registry
+This repository distributes the ARM64 prebuilt image and builds its AMD64 counterpart
+on a native Linux x86_64 runner using the application files extracted from that
+released ARM64 image. Source-file hashes are checked for parity between architectures.
 
-Image: **`ghcr.io/ravirdoracle/terraflowstudio-images:latest`**
+## Platforms and downloads
 
-The registry image is the same **Linux ARM64** prebuilt image as the released
-archive. It is loaded, checked, tagged, and pushed without rebuilding the app.
-The release tag `v2026.11.16` is also available to pin this version.
+| Platform | Typical hosts | Release archive |
+| --- | --- | --- |
+| Linux x86_64 / AMD64 | Intel and AMD Linux servers and PCs | `odb-terraform-app-amd64.tar` |
+| Linux ARM64 | Apple Silicon through Podman/Docker Desktop, Linux ARM64 hosts | `odb-terraform-app-arm64.tar` |
+
+Each archive has a matching `.sha256` checksum file. The image inside either archive
+is named `localhost/odb-terraform-app:latest`.
+
+Latest release: **[v2026.11.16](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.16)**.
+See [release notes](RELEASE_NOTES_v2026.11.16.md) for Active Data Guard Terraform/CLI
+output and UI improvements. The earlier ARM64-only release
+[v2026.11.07](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.07)
+remains available.
+
+## 1. Get the image
+
+### Pull from the registry
 
 ```sh
-# If the package is private, authenticate with an authorized GitHub account
-# and a personal access token (classic) with read:packages at the password prompt.
-podman login ghcr.io --username YOUR_GITHUB_USERNAME
-podman pull ghcr.io/ravirdoracle/terraflowstudio-images:latest
-podman tag ghcr.io/ravirdoracle/terraflowstudio-images:latest localhost/odb-terraform-app:latest
+podman pull ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.16
+podman tag ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.16 localhost/odb-terraform-app:latest
 ```
 
-Public packages do not require login. After pulling and tagging, skip to step 3
-below to set your login credentials and run the app. Docker users can substitute
-`docker` for `podman`.
+The registry automatically selects Linux AMD64 or ARM64 for the host. The `latest`
+tag is also available. To explicitly select x86_64:
 
-The **Publish prebuilt image to GHCR** workflow runs when a release is published,
-or manually through **Actions → Run workflow** with a release tag. It verifies the
-archive checksum and confirms the pushed image ID matches the loaded archive.
+```sh
+podman pull --platform linux/amd64 ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.16
+```
 
-## Latest changes
+Public images do not require login. Docker users can substitute `docker` for
+`podman` throughout these instructions.
 
-See [v2026.11.16 release notes](RELEASE_NOTES_v2026.11.16.md) for Active Data Guard
-Terraform/CLI generation and UI cleanup.
+### Or download and load an archive
 
-## Available download
+Download the archive for your CPU and its checksum from the release. Save them in
+the same directory. For Intel/AMD Linux:
 
-| Release | File | Platform |
-| --- | --- | --- |
-| [v2026.11.16](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.16) | `odb-terraform-app-arm64.tar` | Linux ARM64 |
-| [v2026.11.07](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.07) | `odb-terraform-app-arm64.tar` | Linux ARM64 |
+```sh
+sha256sum -c odb-terraform-app-amd64.tar.sha256
+podman load -i odb-terraform-app-amd64.tar
+```
 
-The ARM64 image runs on Apple Silicon through Podman/Docker Desktop and on Linux
-ARM64 hosts. This download does not include an AMD64 image for Intel/AMD hosts.
-The archive was already built and tested; no Dockerfile, source checkout, or
-build command is needed to run it.
-
-## 1. Download and verify
-
-Download both files from the release:
-
-- `odb-terraform-app-arm64.tar`
-- `odb-terraform-app-arm64.tar.sha256`
-
-Save them in the same directory. On macOS, verify the checksum:
+For Apple Silicon / ARM64 on macOS:
 
 ```sh
 shasum -a 256 -c odb-terraform-app-arm64.tar.sha256
-```
-
-On Linux, use `sha256sum -c odb-terraform-app-arm64.tar.sha256`.
-
-## 2. Load the image
-
-Start the Podman machine in **Podman Desktop → Settings → Resources** if it is
-stopped, then run:
-
-```sh
 podman load -i odb-terraform-app-arm64.tar
-podman images --filter reference=localhost/odb-terraform-app:latest
 ```
 
-In Podman Desktop, use **Images → Load**, not **Import Containers**.
-The loaded image name is `localhost/odb-terraform-app:latest`.
+On Linux ARM64, use `sha256sum` with the ARM64 checksum. Start the Podman machine
+in Podman Desktop if needed. In Podman Desktop, choose **Images → Load**, rather
+than **Import Containers**.
 
-Docker users can replace `podman` with `docker` in the load, run, logs, and
-container-management commands below.
+## 2. Configure the login
 
-## 3. Configure the login
-
-Download [.env.example](https://github.com/ravirdoracle/terraflowstudio-images/blob/main/.env.example)
-from this repository, save it locally, then copy it to `.env`:
+Download [.env.example](.env.example), save it locally and copy it to `.env`:
 
 ```sh
 cp .env.example .env
 ```
 
-Set `APP_AUTH_USER` and a strong `APP_AUTH_PASSWORD` in `.env`. For example,
-`openssl rand -hex 24` generates a password you can paste into the file.
-Use plain values without surrounding quotes for Podman/Docker env files.
+Set both `APP_AUTH_USER` and a strong `APP_AUTH_PASSWORD`. You can generate a
+password with `openssl rand -hex 24`. Use plain values without surrounding quotes
+for Podman/Docker env files. The browser prompts for these credentials when you
+open the app. Both values must be set together; incomplete credentials block requests.
+The images contain no account passwords or API keys. Keep your `.env` private.
+LLM integration is optional; Terraform and CLI generation work without an API key.
 
-Both login values must be set together; incomplete credentials block requests.
-Your browser prompts for this login when you open the app. The image contains no
-account passwords or API keys. Keep your `.env` private.
-
-LLM integration is optional. Leave the API key blank to use Terraform generation
-without AI features.
-
-## 4. Run on localhost or the host IP
-
-From the directory containing your `.env`:
+## 3. Run on localhost or the host IP
 
 ```sh
 podman run -d \
@@ -111,43 +91,30 @@ podman run -d \
   localhost/odb-terraform-app:latest
 ```
 
-Open:
+Open **http://localhost:8080** on the host or **http://HOST_IP:8080** from another
+reachable device. Use the host computer's LAN IP, not the Podman VM's IP.
+Host firewall and network policy must permit inbound TCP 8080; publishing the port
+does not override them. For host-only access, use `-p 127.0.0.1:8080:5000`.
+Use HTTPS through a reverse proxy when the app is exposed beyond a trusted private
+network: HTTP Basic authentication credentials are not encrypted by plain HTTP.
 
-- On the container host: **http://localhost:8080**
-- From another device on the same reachable network: **http://HOST_IP:8080**
-
-Replace `HOST_IP` with the LAN IP of the computer running Podman/Docker, not the
-Podman VM's IP. On a Mac using Wi-Fi, `ipconfig getifaddr en0` usually shows it.
-The host firewall and network policy must allow inbound TCP 8080. If localhost
-works but IP access fails, check those host settings; publishing a container port
-does not override them.
-
-Basic authentication protects the app's pages and APIs. Plain HTTP is suitable
-only for a trusted private network; use an HTTPS reverse proxy for untrusted
-networks so login credentials are encrypted in transit.
-
-For access only from the container host, use `-p 127.0.0.1:8080:5000` instead.
-
-## Manage the container
+The `terraflowstudio-data` volume preserves saved configurations. Reuse it when
+upgrading. Stop and rename an existing container before reusing its name; do not
+delete its data volume. Recreate the container to apply changes to `.env`.
 
 ```sh
-podman ps --filter name=terraflowstudio
 podman logs --tail 50 terraflowstudio
 podman stop terraflowstudio
 podman start terraflowstudio
 ```
 
-The `terraflowstudio-data` volume keeps saved customer configurations when a
-container is recreated. Reuse that volume when upgrading. Update the host `.env`
-and recreate the container to change its environment settings.
+## Publishing workflows
 
-## Release details
+- **Publish prebuilt image to GHCR** loads and checks an ARM64 archive from a release.
+- **Build Linux AMD64 from released application** takes a release tag and an ARM64
+  manifest digest. It extracts the matching app files, builds on native x86_64,
+  verifies source parity and current features, uploads the AMD64 archive/checksum,
+  and publishes combined AMD64/ARM64 registry tags.
 
-- Image configuration ID: `faddbd0208747eba6696cf08e8a9ccae1b406163defb2491af47ff640ad994c0`
-- Platform: `linux/arm64`
-- Image tag after loading: `localhost/odb-terraform-app:latest`
-- Archive size: 1,373,583,872 bytes (about 1.28 GiB)
-- Validation: Gunicorn startup and authenticated HTTP 200; anonymous settings
-  requests receive HTTP 401.
-
-Archives are attached to GitHub Releases, rather than committed to Git history.
+Archives are release assets; they are not committed to Git history. Run the AMD64
+workflow after publishing a new ARM64 release to offer both architectures.
