@@ -1,0 +1,163 @@
+name: Build Linux AMD64 from released application
+
+'on':
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release to receive the AMD64 archive
+        required: true
+        default: v2026.11.16
+        type: string
+      arm64_digest:
+        description: Published ARM64 manifest digest containing the application source
+        required: true
+        default: sha256:3ce392c88b1dd255c8a7640537e84a6097865dd0a9207bb98f370a536861e950
+        type: string
+
+concurrency:
+  group: publish-prebuilt-registry
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    env:
+      IMAGE_NAME: ghcr.io/ravirdoracle/terraflowstudio-images
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      ARM64_DIGEST: ${{ inputs.arm64_digest }}
+    steps:
+      - name: Validate release inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,110}$ ]]
+          [[ "$ARM64_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract matching application files without running the ARM image
+        run: |
+          docker pull --platform linux/arm64 "$IMAGE_NAME@$ARM64_DIGEST"
+          test "$(docker image inspect "$IMAGE_NAME@$ARM64_DIGEST" --format '{{.Architecture}}')" = arm64
+          docker create --platform linux/arm64 --name release-source "$IMAGE_NAME@$ARM64_DIGEST"
+          mkdir build
+          docker cp release-source:/app/. build/
+          docker rm release-source
+          test -f build/Dockerfile
+          test ! -e build/.env
+          test ! -e build/.aws
+          test ! -e build/.codex
+          test ! -e build/.agents
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path('build')
+          hashes = {}
+          for p in root.rglob('*'):
+              relative = p.relative_to(root)
+              if not p.is_file() or any(part in ('data', '__pycache__', '.git', 'tests', 'docker') for part in relative.parts):
+                  continue
+              if p.suffix in ('.py', '.html', '.j2', '.css', '.js', '.json', '.md') and relative.as_posix() != 'README.md':
+                  hashes[relative.as_posix()] = hashlib.sha256(p.read_bytes()).hexdigest()
+          Path('source-hashes.json').write_text(json.dumps(hashes, sort_keys=True))
+          print('Recorded hashes for', len(hashes), 'application files')
+          PY
+          cat > build/.dockerignore <<'IGNORE'
+          __pycache__/
+          *.pyc
+          *.pyo
+          .pytest_cache/
+          tests/
+          data/
+          *.zip
+          .env
+          .env.*
+          !.env.example
+          .claude/
+          .codex/
+          .agents/
+          .aws/
+          .venv/
+          venv/
+          .DS_Store
+          .git/
+          .gitignore
+          README.md
+          docker/
+          artifacts/
+          IGNORE
+      - name: Build native Linux x86_64 image
+        run: |
+          test "$(uname -m)" = x86_64
+          docker build --platform linux/amd64 -t localhost/odb-terraform-app:latest build
+          test "$(docker image inspect localhost/odb-terraform-app:latest --format '{{.Architecture}}')" = amd64
+      - name: Check application parity, authentication and current features
+        run: |
+          docker run --rm --network none \
+            -v "$PWD/source-hashes.json:/expected-source-hashes.json:ro" \
+            -e APP_AUTH_USER=ci-user -e APP_AUTH_PASSWORD=ci-test-password \
+            localhost/odb-terraform-app:latest python -c '
+          import base64, hashlib, json, pathlib
+          expected = json.loads(pathlib.Path("/expected-source-hashes.json").read_text())
+          for relative, digest in expected.items():
+              assert hashlib.sha256((pathlib.Path("/app") / relative).read_bytes()).hexdigest() == digest, relative
+          for secret in (".env", ".aws", ".codex", ".agents"):
+              assert not (pathlib.Path("/app") / secret).exists(), secret
+          from app import app, generate_all
+          client = app.test_client()
+          assert client.get("/").status_code == 401
+          assert client.get("/api/config").status_code == 401
+          headers = {"Authorization": "Basic " + base64.b64encode(b"ci-user:ci-test-password").decode()}
+          for cloud in ("aws", "gcp", "azure", "dg", "oci"):
+              response = client.get("/" + cloud, headers=headers)
+              assert response.status_code == 200, cloud
+              page = response.get_data(as_text=True)
+              assert "llm-templates" not in page and "llm-input" not in page, cloud
+              if cloud != "oci":
+                  assert page.index("id=\"cust-name\"") < page.index("id=\"import-sheet-btn\""), cloud
+          files = generate_all({"cloud": "dg", "dg_associations": [{"module_name": "ci", "mode": "existing", "output_format": "both", "database_id": "ocid1.database.oc1.iad.primary", "peer_database_id": "ocid1.database.oc1.phx.peer", "oci_region": "us-ashburn-1"}]})
+          assert any(p.endswith("cli/run.sh") for p in files)
+          assert any(p.endswith("main.tf") for p in files)
+          print("Source parity, authentication, five pages and Data Guard Terraform/CLI checks passed")
+          '
+          docker run --rm --network none localhost/odb-terraform-app:latest terraform version
+          docker run --rm --network none localhost/odb-terraform-app:latest tofu version
+      - name: Export and upload the AMD64 archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          docker save -o odb-terraform-app-amd64.tar localhost/odb-terraform-app:latest
+          sha256sum odb-terraform-app-amd64.tar > odb-terraform-app-amd64.tar.sha256
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            odb-terraform-app-amd64.tar odb-terraform-app-amd64.tar.sha256
+      - name: Publish AMD64 image and combined platform tags
+        run: |
+          docker tag localhost/odb-terraform-app:latest "$IMAGE_NAME:$RELEASE_TAG-amd64"
+          docker push "$IMAGE_NAME:$RELEASE_TAG-amd64"
+          AMD64_DIGEST=$(docker image inspect "$IMAGE_NAME:$RELEASE_TAG-amd64" --format '{{index .RepoDigests 0}}')
+          docker buildx imagetools create \
+            --tag "$IMAGE_NAME:$RELEASE_TAG" --tag "$IMAGE_NAME:latest" \
+            "$IMAGE_NAME@$ARM64_DIGEST" "$AMD64_DIGEST"
+          for TAG in "$RELEASE_TAG" latest; do
+            docker buildx imagetools inspect "$IMAGE_NAME:$TAG" --raw | python3 -c '
+          import json, sys
+          index = json.load(sys.stdin)
+          platforms = {(m["platform"]["os"], m["platform"]["architecture"]) for m in index["manifests"]}
+          assert {("linux", "amd64"), ("linux", "arm64")} <= platforms, platforms
+          print("Verified Linux AMD64 and ARM64 platform tags")
+          '
+          done
+          EXPECTED_ID=$(docker image inspect localhost/odb-terraform-app:latest --format '{{.Id}}')
+          docker pull --platform linux/amd64 "$IMAGE_NAME:$RELEASE_TAG"
+          test "$(docker image inspect "$IMAGE_NAME:$RELEASE_TAG" --format '{{.Id}}')" = "$EXPECTED_ID"
+          echo "Verified AMD64 image configuration ID: $EXPECTED_ID"
