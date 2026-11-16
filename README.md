@@ -11,7 +11,7 @@ Image: **`ghcr.io/ravirdoracle/terraflowstudio-images:latest`**
 
 The registry image is the same **Linux ARM64** prebuilt image as the released
 archive. It is loaded, checked, tagged, and pushed without rebuilding the app.
-The release tag `v2026.11.07` is also available to pin this version.
+The release tag `v2026.11.16` is also available to pin this version.
 
 ```sh
 # If the package is private, authenticate with an authorized GitHub account
@@ -29,10 +29,16 @@ The **Publish prebuilt image to GHCR** workflow runs when a release is published
 or manually through **Actions → Run workflow** with a release tag. It verifies the
 archive checksum and confirms the pushed image ID matches the loaded archive.
 
+## Latest changes
+
+See [v2026.11.16 release notes](RELEASE_NOTES_v2026.11.16.md) for Active Data Guard
+Terraform/CLI generation and UI cleanup.
+
 ## Available download
 
 | Release | File | Platform |
 | --- | --- | --- |
+| [v2026.11.16](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.16) | `odb-terraform-app-arm64.tar` | Linux ARM64 |
 | [v2026.11.07](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.07) | `odb-terraform-app-arm64.tar` | Linux ARM64 |
 
 The ARM64 image runs on Apple Silicon through Podman/Docker Desktop and on Linux
@@ -137,10 +143,10 @@ and recreate the container to change its environment settings.
 
 ## Release details
 
-- Image configuration ID: `3544bf6ff785253df7ea1ea431dedd598ae47bb1a900f360fd253962f2ebcac8`
+- Image configuration ID: `faddbd0208747eba6696cf08e8a9ccae1b406163defb2491af47ff640ad994c0`
 - Platform: `linux/arm64`
 - Image tag after loading: `localhost/odb-terraform-app:latest`
-- Archive size: 1,370,888,704 bytes (about 1.28 GiB)
+- Archive size: 1,373,583,872 bytes (about 1.28 GiB)
 - Validation: Gunicorn startup and authenticated HTTP 200; anonymous settings
   requests receive HTTP 401.
 

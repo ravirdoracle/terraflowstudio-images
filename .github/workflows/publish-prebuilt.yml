@@ -8,7 +8,7 @@ name: Publish prebuilt image to GHCR
       release_tag:
         description: Release containing the prebuilt ARM64 tar and checksum
         required: true
-        default: v2026.11.07
+        default: v2026.11.16
         type: string
 
 concurrency:
