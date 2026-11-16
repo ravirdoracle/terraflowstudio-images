@@ -2,12 +2,17 @@
 
 Linux ARM64 prebuilt container image, exported from the same image running locally.
 
-## Added
+## New feature: OCI Active Data Guard
 
-- OCI Active Data Guard association tab: create a new standby on an existing Exadata VM cluster or supported bare metal/Exadata DB system.
-- Read-only lookup of an existing database pair, including association status, roles and Active Data Guard details. This does not associate two independently created databases; Data Guard Group configurations use a separate API.
-- Per-association output choice: Terraform/OpenTofu, OCI CLI, or both. CLI downloads include `run.sh`, `request.json` and run instructions.
-- Runtime password prompts rather than passwords in generated files. Terraform creation includes `prevent_destroy`; read the generated guide before applying.
+Open **OCI DG → C — Active Data Guard → Add Data Guard Association**.
+
+- **Create standby and associate:** generate configuration to create a standby database from an existing primary on an existing Exadata VM cluster or supported bare metal/Exadata DB system. Active Data Guard is enabled by default and can be toggled on the card.
+- **Check existing database pair:** generate a read-only lookup that reports association details, roles, state, redo apply lag/rate and whether Active Data Guard is enabled. This does not create an association between two independently created databases or enable Active Data Guard on an existing pair. Data Guard Group configurations use a separate API.
+- **Generate Terraform/OpenTofu, OCI CLI, or both:** choose the output on each association card. Preview the files in the app and download them in the ZIP. CLI output includes `cli/run.sh`, `cli/request.json` and run instructions; run it with `bash run.sh` after configuring OCI CLI authentication.
+- **Configure primary and standby details:** select the primary OCI region, enter the primary database OCID and target VM cluster/DB system OCID, and optionally specify the standby DB Home, unique name and SID prefix.
+- **Keep passwords out of generated files:** Terraform and CLI creation prompt for the existing primary database admin password at runtime. The app does not collect that password.
+- **Create with supported defaults:** creation uses `MAXIMUM_PERFORMANCE` protection and `ASYNC` transport. Apply and verify networking first, and check service compatibility, capacity, permissions and Active Data Guard licensing.
+- **Terraform deletion protection:** generated creation configuration includes `prevent_destroy`, because provider deletion terminates the standby DB Home/DB system. Read the generated guide before applying. CLI creation has no Terraform state or lifecycle protection; choose one creation workflow per standby.
 
 ## UI changes
 
@@ -65,3 +70,4 @@ Avoid running both Terraform and CLI creation for the same standby. CLI creation
 not tracked by Terraform state. One pre-existing full-suite test still expects eight
 saved X11M configurations where the local data contains ten; this release does not
 change that test or those saved configurations.
+
