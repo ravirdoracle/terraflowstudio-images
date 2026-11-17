@@ -8,7 +8,7 @@ name: Publish prebuilt image to GHCR
       release_tag:
         description: Release containing the prebuilt ARM64 tar and checksum
         required: true
-        default: v2026.11.16
+        default: v2026.11.17
         type: string
 
 concurrency:
@@ -58,6 +58,12 @@ jobs:
           auth = base64.b64encode(b"ci-user:ci-test-password").decode()
           assert client.get("/", headers={"Authorization": "Basic " + auth}).status_code == 200
           assert not pathlib.Path("/app/.env").exists()
+          tutorial = client.get("/tutorial?workspace=gcp", headers={"Authorization": "Basic " + auth})
+          assert tutorial.status_code == 200
+          html = tutorial.get_data(as_text=True)
+          assert "const actualScreens=" in html and "data:image/webp;base64," in html
+          assert "google_oracle_database_cloud_vm_cluster" in html and "azurerm_oracle_cloud_vm_cluster" in html
+          assert client.get("/tutorial").status_code == 401
           print("Prebuilt image authentication and credential checks passed")
           '
       - name: Sign in to GitHub Container Registry
@@ -68,21 +74,19 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push the prebuilt image
         run: |
-          docker tag localhost/odb-terraform-app:latest "$IMAGE_NAME:$RELEASE_TAG"
-          docker tag localhost/odb-terraform-app:latest "$IMAGE_NAME:latest"
-          docker push "$IMAGE_NAME:$RELEASE_TAG"
-          docker push "$IMAGE_NAME:latest"
+          docker tag localhost/odb-terraform-app:latest "$IMAGE_NAME:$RELEASE_TAG-arm64"
+          docker push "$IMAGE_NAME:$RELEASE_TAG-arm64"
       - name: Verify the registry image matches the release
         env:
           EXPECTED_IMAGE_ID: ${{ steps.load.outputs.image_id }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          docker pull --platform linux/arm64 "$IMAGE_NAME:latest"
-          actual_id=$(docker image inspect "$IMAGE_NAME:latest" --format '{{.Id}}')
+          docker pull --platform linux/arm64 "$IMAGE_NAME:$RELEASE_TAG-arm64"
+          actual_id=$(docker image inspect "$IMAGE_NAME:$RELEASE_TAG-arm64" --format '{{.Id}}')
           test "$actual_id" = "$EXPECTED_IMAGE_ID"
-          echo "Verified published image: $IMAGE_NAME:latest"
+          echo "Verified published image: $IMAGE_NAME:$RELEASE_TAG-arm64"
           echo "Image configuration ID: $actual_id"
-          docker image inspect "$IMAGE_NAME:latest" --format '{{json .RepoDigests}}'
+          docker image inspect "$IMAGE_NAME:$RELEASE_TAG-arm64" --format '{{json .RepoDigests}}'
           if ! gh api "users/${GITHUB_REPOSITORY_OWNER}/packages/container/terraflowstudio-images" \
             --jq '{name,visibility,html_url}'; then
             echo "::warning::Image was verified, but package visibility could not be read."

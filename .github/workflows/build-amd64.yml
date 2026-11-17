@@ -6,7 +6,7 @@ name: Build Linux AMD64 from released application
       release_tag:
         description: Existing release to receive the AMD64 archive
         required: true
-        default: v2026.11.16
+        default: v2026.11.17
         type: string
       verify_only:
         description: Verify existing release archives and registry tags without rebuilding
@@ -16,7 +16,6 @@ name: Build Linux AMD64 from released application
       arm64_digest:
         description: Published ARM64 manifest digest containing the application source
         required: true
-        default: sha256:3ce392c88b1dd255c8a7640537e84a6097865dd0a9207bb98f370a536861e950
         type: string
 
 concurrency:
@@ -141,6 +140,12 @@ jobs:
               assert "llm-templates" not in page and "llm-input" not in page, cloud
               if cloud != "oci":
                   assert page.index("id=\"cust-name\"") < page.index("id=\"import-sheet-btn\""), cloud
+          tutorial = client.get("/tutorial?workspace=azure", headers=headers)
+          assert tutorial.status_code == 200
+          html = tutorial.get_data(as_text=True)
+          assert "const actualScreens=" in html and "data:image/webp;base64," in html
+          assert "google_oracle_database_cloud_vm_cluster" in html and "azurerm_oracle_cloud_vm_cluster" in html
+          assert client.get("/tutorial").status_code == 401
           files = generate_all({"cloud": "dg", "dg_associations": [{"module_name": "ci", "mode": "existing", "output_format": "both", "database_id": "ocid1.database.oc1.iad.primary", "peer_database_id": "ocid1.database.oc1.phx.peer", "oci_region": "us-ashburn-1"}]})
           assert any(p.endswith("cli/run.sh") for p in files)
           assert any(p.endswith("main.tf") for p in files)
