@@ -18,8 +18,8 @@ released ARM64 image. Source-file hashes are checked for parity between architec
 Each archive has a matching `.sha256` checksum file. The image inside either archive
 is named `localhost/odb-terraform-app:latest`.
 
-Latest release: **[v2026.11.17](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.17)**.
-See [release notes](RELEASE_NOTES_v2026.11.17.md) for the interactive tutorial, corrected GCP/Azure screens, and included Active Data Guard Terraform/CLI features. The earlier ARM64-only release
+Latest release: **[v2026.11.22](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.22)**.
+See [release notes](RELEASE_NOTES_v2026.11.22.md) for Azure existing-resource selectors, corrected Terraform generation, and generated import guidance. The earlier ARM64-only release
 [v2026.11.07](https://github.com/ravirdoracle/terraflowstudio-images/releases/tag/v2026.11.07)
 remains available.
 
@@ -28,15 +28,15 @@ remains available.
 ### Pull from the registry
 
 ```sh
-podman pull ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.17
-podman tag ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.17 localhost/odb-terraform-app:latest
+podman pull ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.22
+podman tag ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.22 localhost/odb-terraform-app:latest
 ```
 
 The registry automatically selects Linux AMD64 or ARM64 for the host. The `latest`
 tag is also available. To explicitly select x86_64:
 
 ```sh
-podman pull --platform linux/amd64 ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.17
+podman pull --platform linux/amd64 ghcr.io/ravirdoracle/terraflowstudio-images:v2026.11.22
 ```
 
 Public images do not require login. Docker users can substitute `docker` for

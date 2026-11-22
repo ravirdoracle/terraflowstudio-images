@@ -6,7 +6,7 @@ name: Build Linux AMD64 from released application
       release_tag:
         description: Existing release to receive the AMD64 archive
         required: true
-        default: v2026.11.17
+        default: v2026.11.22
         type: string
       verify_only:
         description: Verify existing release archives and registry tags without rebuilding
